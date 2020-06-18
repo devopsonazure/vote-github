@@ -1,0 +1,87 @@
+name: "Build and deploy - action"
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  CLUSTER_NAME: akssea
+  RESOURCE_GROUP: AKSSEA
+  NAMESPACE: github
+  IMAGE_NAME: azure-vote-front-github
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: "Checkout repository"
+      uses: actions/checkout@master
+      with:
+        fetch-depth: 2
+    
+    - uses: Azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.REGISTRY_URL }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+    
+    - name: "Build and push to container registry"
+      run: |
+        docker build . -t ${{ secrets.REGISTRY_URL }}/${{env.IMAGE_NAME}}:${{ github.sha }}
+        docker push ${{ secrets.REGISTRY_URL }}/${{env.IMAGE_NAME}}:${{ github.sha }}
+
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+    - name: "Get code from github repo"
+      uses: actions/checkout@master
+
+    - name: "Set the target AKS cluster"
+      uses: Azure/aks-set-context@v1
+      with:
+        creds: '${{ secrets.AZURE_CREDENTIALS }}'
+        cluster-name: ${{ env.CLUSTER_NAME }}
+        resource-group: ${{ env.RESOURCE_GROUP }}
+
+    - name: "Create the namespace if it does not exist"
+      run: |
+        kubectl create ns ${{env.NAMESPACE}} --dry-run -o json | kubectl apply -f -
+
+    - name: "Create container registry image pull secret"
+      uses: Azure/k8s-create-secret@v1
+      with:
+        container-registry-url: ${{ secrets.REGISTRY_URL }}
+        container-registry-username: ${{ secrets.REGISTRY_USERNAME }}
+        container-registry-password: ${{ secrets.REGISTRY_PASSWORD }}
+        secret-name: acr-secret
+        namespace: ${{env.NAMESPACE}}
+
+    - name: "Deploy azure vote back"
+      uses: Azure/k8s-deploy@v1
+      timeout-minutes: 5
+      with:
+        namespace: ${{env.NAMESPACE}}
+        manifests: |
+          manifests/back.yml
+
+    - name: "Deploy azure vote front"
+      uses: Azure/k8s-deploy@v1
+      timeout-minutes: 5
+      with:
+        namespace: ${{env.NAMESPACE}}
+        manifests: |
+          manifests/front.yml
+          manifests/service.yml
+        images: |
+          ${{secrets.REGISTRY_URL}}/${{env.IMAGE_NAME}}:${{ github.sha }}
+        imagepullsecrets: |
+          acr-secret
+        #strategy: canary
+        #percentage: 100
+
+    - name: "If azure deployment was not succeeded"
+      if: failure()
+      run: |
+        kubectl rollout undo deployment/azure-vote-front --namespace ${{env.NAMESPACE}}
