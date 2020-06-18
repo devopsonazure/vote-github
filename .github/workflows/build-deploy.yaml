@@ -6,8 +6,8 @@ on:
       - master
 
 env:
-  CLUSTER_NAME: akssea
-  RESOURCE_GROUP: AKSSEA
+  CLUSTER_NAME: aksaad
+  RESOURCE_GROUP: AKSAAD
   NAMESPACE: github
   IMAGE_NAME: azure-vote-front-github
 
