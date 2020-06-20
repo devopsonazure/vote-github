@@ -74,6 +74,7 @@ jobs:
         manifests: |
           manifests/front.yml
           manifests/service.yml
+          manifests/ingress.yml
         images: |
           ${{secrets.REGISTRY_URL}}/${{env.IMAGE_NAME}}:${{ github.sha }}
         imagepullsecrets: |
