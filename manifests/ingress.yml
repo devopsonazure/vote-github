@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
-  name: vote-devops
+  name: vote-github
   annotations:
     kubernetes.io/ingress.class: nginx
 spec:
   rules:
-  - host: vote-devops.k8s.devsecops.ink
+  - host: vote-github.k8s.devsecops.ink
     http:
       paths:
       - backend:
